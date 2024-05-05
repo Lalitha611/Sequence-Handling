@@ -1,11 +1,10 @@
-import logging
+from loguru import logger
 import os
 from tqdm import tqdm
 import pandas as pd
 from Bio import SeqIO
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
-
 
 Base = declarative_base()
 
@@ -31,60 +30,70 @@ def create_dataframe_from_path(folder_path):
     return df
 
 
+class FastqSequence(Base):
+    __tablename__ = "fastq_sequences"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    file_path = Column(String)
+    sequence_id = Column(Text)
+    sequence = Column(Text)
+
+
 class FastqProcessor:
     def __init__(self, db_url):
-        engine = create_engine(db_url)
-        Base.metadata.create_all(engine)
-        self.Session = sessionmaker(bind=engine)
+        self.engine = create_engine(db_url)
+        Base.metadata.create_all(self.engine)
+        self.Session = sessionmaker(bind=self.engine)
 
-    def create_database_from_path(self, folder_path, table_name="fastq_sequences"):
+    def create_database_from_path(self, folder_path):
         session = self.Session()
+        try:
+            fastq_files = get_fastq_files(folder_path)
+            for i, each in enumerate(tqdm(fastq_files)):
+                for record in SeqIO.parse(each, "fastq"):
+                    sequence = str(record.seq)
+                    sequence_id = str(record.description)
+                    fastq_sequence = FastqSequence(file_path=each, sequence_id=sequence_id, sequence=sequence)
+                    session.add(fastq_sequence)
+            session.commit()
+        except Exception as e:
+            logger.error(f"Error creating database: {e}")
+            session.rollback()
+        finally:
+            session.close()
 
-        class FastqSequence(Base):
-            __tablename__ = table_name
-            id = Column(Integer, primary_key=True, autoincrement=True)
-            file_path = Column(String)
-            sequence = Column(Text)
-
-        fastq_files = get_fastq_files(folder_path)
-        for i, each in tqdm(enumerate(fastq_files), total=len(fastq_files), desc="Writing files to database"):
-            for record in SeqIO.parse(each, "fastq"):
-                sequence = str(record.seq)
-                fastq_sequence = FastqSequence(file_path=each, sequence=sequence)
-                session.add(fastq_sequence)
-        session.commit()
-        session.close()
-
-    def filter_unique_sequences(self, 
-                                forward_fastq_file, 
-                                reverse_fastq_file, 
-                                output_file=None,
-                                table_name="fastq_sequences"):
+    def filter_unique_sequences(self, forward_fastq_file, reverse_fastq_file, output_file=None):
         session = self.Session()
+        try:
+            unique_seqs_descs = {}
+            logger.info("Filtering unique sequences")
+            for seq_record1, seq_record2 in zip(SeqIO.parse(forward_fastq_file, "fastq"),
+                                                SeqIO.parse(reverse_fastq_file, "fastq")):
+                seq = str(seq_record1.seq)
+                desc = seq_record1.description
+                if seq not in unique_seqs_descs:
+                    unique_seqs_descs[seq] = desc
 
-        class FastqSequence(Base):
-            __tablename__ = table_name
-            id = Column(Integer, primary_key=True, autoincrement=True)
-            file_path = Column(String)
-            sequence = Column(Text)
+                seq = str(seq_record2.seq)
+                desc = seq_record2.description
+                if seq not in unique_seqs_descs:
+                    unique_seqs_descs[seq] = desc
 
-        unique_sequences = set()
-        logging.info("Filtering unique sequences")
-        for seq_record1, seq_record2 in zip(SeqIO.parse(forward_fastq_file, "fastq"),
-                                            SeqIO.parse(reverse_fastq_file, "fastq")):
-            unique_sequences.add(str(seq_record1.seq))
-            unique_sequences.add(str(seq_record2.seq))
+            database_sequences = {seq.sequence for seq in session.query(FastqSequence).all()}
+            unique_seqs_descs = {seq: desc for seq, desc in unique_seqs_descs.items() if seq not in database_sequences}
 
-        database_sequences = {seq.sequence for seq in session.query(FastqSequence).all()}
-        unique_sequences = unique_sequences - database_sequences
+            logger.info(f"Number of unique sequences found are {len(unique_seqs_descs)}")
 
-        logging.info(f"Number of unique sequences found are {len(unique_sequences)}")
+            if output_file:
+                logger.info(f"Writing unique sequences to {output_file}")
+                with open(output_file, "w") as f:
+                    for seq, desc in sorted(unique_seqs_descs.items()):
+                        f.write(f">{desc}\n{seq}\n")
 
-        if output_file:
-            logging.info(f"Writing unique sequences to {output_file}")
-            SeqIO.write(unique_sequences, output_file, "fasta")
-
-        return unique_sequences
+            return unique_seqs_descs
+        except Exception as e:
+            logger.error(f"Error filtering unique sequences: {e}")
+        finally:
+            session.close()
 
 
 def load_database_as_dataframe(db_url, table_name="fastq_sequences"):
