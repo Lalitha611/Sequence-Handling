@@ -1,12 +1,13 @@
 import logging
 import os
-from dataclasses import dataclass
 from tqdm import tqdm
 import pandas as pd
 from Bio import SeqIO
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
-from loguru import logger
+
+
+Base = declarative_base()
 
 
 def get_fastq_files(folder_path):
@@ -30,32 +31,60 @@ def create_dataframe_from_path(folder_path):
     return df
 
 
-@dataclass
 class FastqProcessor:
-    Base = declarative_base()
-
     def __init__(self, db_url):
         engine = create_engine(db_url)
-        self.Base.metadata.create_all(engine)
+        Base.metadata.create_all(engine)
         self.Session = sessionmaker(bind=engine)
 
     def create_database_from_path(self, folder_path, table_name="fastq_sequences"):
         session = self.Session()
 
-        class FastqSequence(self.Base):
+        class FastqSequence(Base):
             __tablename__ = table_name
             id = Column(Integer, primary_key=True, autoincrement=True)
             file_path = Column(String)
             sequence = Column(Text)
 
         fastq_files = get_fastq_files(folder_path)
-        for i, each in tqdm(enumerate(fastq_files), total=len(fastq_files), desc= "Writing files to database"):
+        for i, each in tqdm(enumerate(fastq_files), total=len(fastq_files), desc="Writing files to database"):
             for record in SeqIO.parse(each, "fastq"):
                 sequence = str(record.seq)
                 fastq_sequence = FastqSequence(file_path=each, sequence=sequence)
                 session.add(fastq_sequence)
         session.commit()
         session.close()
+
+    def filter_unique_sequences(self, 
+                                forward_fastq_file, 
+                                reverse_fastq_file, 
+                                output_file=None,
+                                table_name="fastq_sequences"):
+        session = self.Session()
+
+        class FastqSequence(Base):
+            __tablename__ = table_name
+            id = Column(Integer, primary_key=True, autoincrement=True)
+            file_path = Column(String)
+            sequence = Column(Text)
+
+        unique_sequences = set()
+        logging.info("Filtering unique sequences")
+        for seq_record1, seq_record2 in zip(SeqIO.parse(forward_fastq_file, "fastq"),
+                                            SeqIO.parse(reverse_fastq_file, "fastq")):
+            unique_sequences.add(str(seq_record1.seq))
+            unique_sequences.add(str(seq_record2.seq))
+
+        database_sequences = {seq.sequence for seq in session.query(FastqSequence).all()}
+        unique_sequences = unique_sequences - database_sequences
+
+        logging.info(f"Number of unique sequences found are {len(unique_sequences)}")
+
+        if output_file:
+            logging.info(f"Writing unique sequences to {output_file}")
+            SeqIO.write(unique_sequences, output_file, "fasta")
+
+        return unique_sequences
 
 
 def load_database_as_dataframe(db_url, table_name="fastq_sequences"):
