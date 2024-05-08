@@ -52,8 +52,6 @@ poetry run python sequence_handler/main.py
 The folder creates a sqlalchemy database in the given path. This database has three columns: `file path`, `sequence` and `sequence id`
 This also filters out the unique sequences in the given files and writes them to output fasta file. 
 
-### Folder structure
-
 ## Miscellaneous 
 ### Formatting
 Formatting (lint, isort, black, mypy) can handled by running  
