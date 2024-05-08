@@ -3,3 +3,4 @@
 *.pyc
 *.fastq
 *.fasta
+.tox

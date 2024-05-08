@@ -4,10 +4,19 @@ from tqdm import tqdm
 import pandas as pd
 from Bio import SeqIO
 from sqlalchemy import create_engine
-from .common import DatabaseManager, FastqSequence
+from sequence_handler.utils.common import DatabaseManager, FastqSequence
 
 
 def get_fastq_files(folder_path: str) -> list:
+    """
+    Fetches the fastq files given the folder path
+    Args:
+        folder_path: the path of folder or accession id where fastq files are stored
+
+    Returns:
+        a list of fastq files in the folder
+
+    """
     fastq_files = []
     for root, dirs, files in os.walk(folder_path):
         for file in files:
@@ -16,7 +25,16 @@ def get_fastq_files(folder_path: str) -> list:
     return fastq_files
 
 
-def create_dataframe_from_path(folder_path: str) -> None:
+def create_dataframe_from_path(folder_path: str) -> pd.DataFrame:
+    """
+    Creates pandas dataframe from fastq files folder
+    Args:
+        folder_path: the path of the fastq files
+
+    Returns:
+        a pandas dataframe containing fastq data
+
+    """
     fastq_files = get_fastq_files(folder_path)
     data = []
     for each in fastq_files:
@@ -29,6 +47,16 @@ def create_dataframe_from_path(folder_path: str) -> None:
 
 
 def create_database_from_path(db_url: str, folder_path: str) -> None:
+    """
+    creates sqlalchemy database from folder of fastq files
+    Args:
+        db_url: the uri of the database where it has to be stored
+        folder_path: the folder path containing fastq files
+
+    Returns:
+        None
+
+    """
     db_manager = DatabaseManager(db_url=db_url)
     session = db_manager.Session()
     try:
@@ -48,7 +76,18 @@ def create_database_from_path(db_url: str, folder_path: str) -> None:
 
 
 def filter_unique_sequences(db_url: str, forward_fastq_file: str, reverse_fastq_file: str,
-                            output_file: str | None = None):
+                            output_file: str | None = None) -> dict:
+    """
+    Filters the unique sequences which are not present in the database
+    Args:
+        db_url: uri of the existing database
+        forward_fastq_file: the forward fastq file
+        reverse_fastq_file: the reverse fastq file
+        output_file: the output path where fasta file has to be stored
+
+    Returns:
+        a dictionary with all unique sequences and descriptions
+    """
     db_manager = DatabaseManager(db_url=db_url)
     session = db_manager.Session()
     try:
@@ -85,6 +124,16 @@ def filter_unique_sequences(db_url: str, forward_fastq_file: str, reverse_fastq_
 
 
 def load_database_as_dataframe(db_url: str, table_name: str = "fastq_sequences") -> pd.DataFrame:
+    """
+    loads a sqlalchemy database as pandas dataframe
+    Args:
+        db_url: the uri of the exisiting database
+        table_name: name of the table saved in database
+
+    Returns:
+        a pandas dataframe containing fastq data
+
+    """
     engine = create_engine(db_url)
     with engine.connect() as conn, conn.begin():
         df = pd.read_sql_table(table_name, conn)

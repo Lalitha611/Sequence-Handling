@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "sequence_handler"
+version = "1.0"
+description = "Package for sequence handling"
+authors = ["Lalitha Kamada"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+sqlalchemy = "^2.0.29"
+pandas = "^2.2.2"
+loguru = "^0.7.2"
+tqdm = "^4.66.4"
+biopython = "1.83"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.0"
+mypy = "^1.10.0"
+ruff = "^0.4.3"
+isort = "^5.13.2"
+tox = "^4.15.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length=120
+target-version=["py310"]
+
+[tool.isort]
+line-length=120
+include_trailing_commas = true
+combine_as_imports = true
+use_parantheses = true
