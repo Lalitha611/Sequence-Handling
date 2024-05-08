@@ -6,6 +6,7 @@ This repo creates a package named sequence handler which loads in a folder conta
 - [Setup](#Setup)
 - [Installation](#installation)
   - [Download Files](#download-files)
+  - [Folder structure](#Folder-structure)
   - [Misc: Formatting](#Formatting)
 
 
@@ -15,6 +16,8 @@ This repo creates a package named sequence handler which loads in a folder conta
 Sample files are downloaded from Zenodo using accession id 7636289
 (https://zenodo.org/records/7636289)
 
+
+### Folder structure
 ```
 project
    README.md    
@@ -25,9 +28,9 @@ project
 │   │   eipl_A.2.fastq
 │   │   │  eipl_A.2.fastq
 │   │   eipl_C.1.fastq
-│   │    │  eipl_C.1.fastq
+│   │   │  eipl_C.1.fastq
 │   │   eipl_C.2.fastq
-│   │    │  eipl_C.2.fastq
+│   │   │  eipl_C.2.fastq
 │   │
 └───Inputs:
 │   |  fikt_A.1.fastq
@@ -35,6 +38,12 @@ project
 |
 └───Outputs:
 |    |  out.fasta
+|
+└───sequence_handler:
+|   |  utils
+│   |   |  common.py
+│   |   |  data_utils.py
+|   |  main.py
 ```
 
 ### Installation
